@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\LoadBalancer.Domain\LoadBalancer.Domain.csproj" />
+    <ProjectReference Include="..\LoadBalancer.Application\LoadBalancer.Application.csproj" />
+    <ProjectReference Include="..\LoadBalancer.Infrastructure\LoadBalancer.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
