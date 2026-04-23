@@ -13,4 +13,12 @@ public interface ILoadBalancer
     /// when no healthy nodes are available.
     /// </summary>
     BackendNode? Next();
+
+    /// <summary>
+    /// Selects the next backend node and returns a scope handle that
+    /// decrements the node's active-request counter when disposed.
+    /// Use with <c>await using</c> or <c>using</c> to track in-flight requests.
+    /// Returns <c>null</c> when no healthy nodes are available.
+    /// </summary>
+    IRequestScope? Track();
 }

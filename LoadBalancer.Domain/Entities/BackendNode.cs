@@ -12,6 +12,14 @@ public sealed class BackendNode
     /// <summary>UTC timestamp of when this node was registered. Used to enforce the startup grace period.</summary>
     public DateTimeOffset RegisteredAt { get; }
 
+    /// <summary>
+    /// Number of requests currently in-flight to this node.
+    /// Incremented when a request is dispatched and decremented when it completes.
+    /// Thread-safe via <see cref="Interlocked"/>.
+    /// </summary>
+    public int ActiveRequests => _activeRequests;
+    private int _activeRequests;
+
     public BackendNode(string id, string address, DateTimeOffset? registeredAt = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -25,4 +33,7 @@ public sealed class BackendNode
 
     public void MarkHealthy() => IsHealthy = true;
     public void MarkUnhealthy() => IsHealthy = false;
+
+    internal void IncrementActive() => Interlocked.Increment(ref _activeRequests);
+    internal void DecrementActive() => Interlocked.Decrement(ref _activeRequests);
 }

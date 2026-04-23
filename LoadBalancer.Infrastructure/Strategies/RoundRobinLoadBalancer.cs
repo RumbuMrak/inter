@@ -32,4 +32,11 @@ public sealed class RoundRobinLoadBalancer : ILoadBalancer
         var index = (int)((uint)Interlocked.Increment(ref _counter) % (uint)healthy.Count);
         return healthy[index];
     }
+
+    /// <inheritdoc/>
+    public IRequestScope? Track()
+    {
+        var node = Next();
+        return node is null ? null : new RequestScope(node);
+    }
 }
