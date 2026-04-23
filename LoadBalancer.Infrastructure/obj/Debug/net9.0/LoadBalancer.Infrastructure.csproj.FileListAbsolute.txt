@@ -1,0 +1,5 @@
+C:\temp\inter\LoadBalancer.Infrastructure\obj\Debug\net9.0\LoadBalancer.Infrastructure.csproj.AssemblyReference.cache
+C:\temp\inter\LoadBalancer.Infrastructure\obj\Debug\net9.0\LoadBalancer.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+C:\temp\inter\LoadBalancer.Infrastructure\obj\Debug\net9.0\LoadBalancer.Infrastructure.AssemblyInfoInputs.cache
+C:\temp\inter\LoadBalancer.Infrastructure\obj\Debug\net9.0\LoadBalancer.Infrastructure.AssemblyInfo.cs
+C:\temp\inter\LoadBalancer.Infrastructure\obj\Debug\net9.0\LoadBalancer.Infrastructure.csproj.CoreCompileInputs.cache

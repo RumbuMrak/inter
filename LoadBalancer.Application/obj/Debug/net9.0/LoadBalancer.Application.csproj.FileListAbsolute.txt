@@ -1,0 +1,15 @@
+C:\temp\inter\LoadBalancer.Application\bin\Debug\net9.0\LoadBalancer.Application.deps.json
+C:\temp\inter\LoadBalancer.Application\bin\Debug\net9.0\LoadBalancer.Application.dll
+C:\temp\inter\LoadBalancer.Application\bin\Debug\net9.0\LoadBalancer.Application.pdb
+C:\temp\inter\LoadBalancer.Application\bin\Debug\net9.0\LoadBalancer.Domain.dll
+C:\temp\inter\LoadBalancer.Application\bin\Debug\net9.0\LoadBalancer.Domain.pdb
+C:\temp\inter\LoadBalancer.Application\obj\Debug\net9.0\LoadBalancer.Application.csproj.AssemblyReference.cache
+C:\temp\inter\LoadBalancer.Application\obj\Debug\net9.0\LoadBalancer.Application.GeneratedMSBuildEditorConfig.editorconfig
+C:\temp\inter\LoadBalancer.Application\obj\Debug\net9.0\LoadBalancer.Application.AssemblyInfoInputs.cache
+C:\temp\inter\LoadBalancer.Application\obj\Debug\net9.0\LoadBalancer.Application.AssemblyInfo.cs
+C:\temp\inter\LoadBalancer.Application\obj\Debug\net9.0\LoadBalancer.Application.csproj.CoreCompileInputs.cache
+C:\temp\inter\LoadBalancer.Application\obj\Debug\net9.0\LoadBala.1599CF81.Up2Date
+C:\temp\inter\LoadBalancer.Application\obj\Debug\net9.0\LoadBalancer.Application.dll
+C:\temp\inter\LoadBalancer.Application\obj\Debug\net9.0\refint\LoadBalancer.Application.dll
+C:\temp\inter\LoadBalancer.Application\obj\Debug\net9.0\LoadBalancer.Application.pdb
+C:\temp\inter\LoadBalancer.Application\obj\Debug\net9.0\ref\LoadBalancer.Application.dll

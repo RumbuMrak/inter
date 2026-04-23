@@ -1,66 +1,83 @@
 using LoadBalancer.Application.Interfaces;
 using LoadBalancer.Domain.Entities;
 using LoadBalancer.Infrastructure.HealthChecks;
+using NSubstitute;
 
 namespace LoadBalancer.Tests;
 
-// ---------------------------------------------------------------------------
-// Fake INodeHealthChecker for deterministic test control
-// ---------------------------------------------------------------------------
+// =============================================================================
+// PeriodicHealthCheckRunner — INodeHealthChecker is mocked via NSubstitute
+// =============================================================================
 
-file sealed class FakeHealthChecker : INodeHealthChecker
+public sealed class PeriodicHealthCheckRunnerConstructorTests
 {
-    private readonly Dictionary<string, bool> _results;
+    private static INodeHealthChecker AnyChecker() => Substitute.For<INodeHealthChecker>();
+    private static HealthCheckOptions AnyOptions() => new();
 
-    public FakeHealthChecker(Dictionary<string, bool> results)
-        => _results = results;
-
-    public int CallCount { get; private set; }
-
-    public Task<bool> CheckAsync(BackendNode node, CancellationToken cancellationToken = default)
+    [Fact]
+    public void Constructor_NullNodes_Throws()
     {
-        CallCount++;
-        return Task.FromResult(_results.TryGetValue(node.Id, out var r) && r);
+        Assert.Throws<ArgumentNullException>(
+            () => new PeriodicHealthCheckRunner(null!, AnyChecker(), AnyOptions()));
+    }
+
+    [Fact]
+    public void Constructor_NullChecker_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new PeriodicHealthCheckRunner([], null!, AnyOptions()));
+    }
+
+    [Fact]
+    public void Constructor_NullOptions_Throws()
+    {
+        Assert.Throws<ArgumentNullException>(
+            () => new PeriodicHealthCheckRunner([], AnyChecker(), null!));
+    }
+
+    [Fact]
+    public async Task StartAsync_CalledTwice_ThrowsObjectDisposedException()
+    {
+        var runner = new PeriodicHealthCheckRunner([], AnyChecker(), AnyOptions());
+        await runner.StartAsync();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => runner.StartAsync());
+        await runner.StopAsync();
     }
 }
-
-// ---------------------------------------------------------------------------
-// Grace period tests
-// ---------------------------------------------------------------------------
 
 public sealed class PeriodicHealthCheckRunnerGracePeriodTests
 {
     [Fact]
-    public async Task NodeInGracePeriod_IsNotProbed()
+    public async Task NodeInGracePeriod_CheckerIsNeverCalled()
     {
-        var node    = new BackendNode("n1", "http://a", registeredAt: DateTimeOffset.UtcNow);
-        var checker = new FakeHealthChecker(new() { ["n1"] = true });
+        var node    = new BackendNode("n1", "http://a"); // RegisteredAt = UtcNow
+        var checker = Substitute.For<INodeHealthChecker>();
         var options = new HealthCheckOptions
         {
-            GracePeriod = TimeSpan.FromHours(1),   // far in the future
+            GracePeriod = TimeSpan.FromHours(1),
             Interval    = TimeSpan.FromMilliseconds(50),
             Timeout     = TimeSpan.FromSeconds(1),
         };
 
         await using var runner = new PeriodicHealthCheckRunner([node], checker, options);
         await runner.StartAsync();
-
-        // Allow two ticks to fire
         await Task.Delay(200);
         await runner.StopAsync();
 
-        Assert.Equal(0, checker.CallCount);
-        Assert.True(node.IsHealthy); // stays healthy (initial state)
+        await checker.DidNotReceive().CheckAsync(Arg.Any<BackendNode>(), Arg.Any<CancellationToken>());
+        Assert.True(node.IsHealthy); // untouched — stays at initial healthy state
     }
 
     [Fact]
-    public async Task NodePastGracePeriod_IsProbed()
+    public async Task NodePastGracePeriod_CheckerIsCalledAtLeastOnce()
     {
-        // Simulate a node that was registered 1 minute ago — past any reasonable grace period
         var node = new BackendNode("n1", "http://a",
             registeredAt: DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
+        var checker = Substitute.For<INodeHealthChecker>();
+        checker.CheckAsync(Arg.Any<BackendNode>(), Arg.Any<CancellationToken>())
+               .Returns(true);
 
-        var checker = new FakeHealthChecker(new() { ["n1"] = true });
         var options = new HealthCheckOptions
         {
             GracePeriod = TimeSpan.FromSeconds(5),
@@ -70,20 +87,37 @@ public sealed class PeriodicHealthCheckRunnerGracePeriodTests
 
         await using var runner = new PeriodicHealthCheckRunner([node], checker, options);
         await runner.StartAsync();
-
-        await Task.Delay(200); // allow at least one tick
+        await Task.Delay(200);
         await runner.StopAsync();
 
-        Assert.True(checker.CallCount > 0);
+        await checker.Received().CheckAsync(node, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task EmptyNodeList_CheckerIsNeverCalled()
+    {
+        var checker = Substitute.For<INodeHealthChecker>();
+        var options = new HealthCheckOptions
+        {
+            GracePeriod = TimeSpan.Zero,
+            Interval    = TimeSpan.FromMilliseconds(50),
+            Timeout     = TimeSpan.FromSeconds(1),
+        };
+
+        await using var runner = new PeriodicHealthCheckRunner([], checker, options);
+        await runner.StartAsync();
+        await Task.Delay(200);
+        await runner.StopAsync();
+
+        await checker.DidNotReceive().CheckAsync(Arg.Any<BackendNode>(), Arg.Any<CancellationToken>());
     }
 }
 
-// ---------------------------------------------------------------------------
-// Health state transition tests
-// ---------------------------------------------------------------------------
-
 public sealed class PeriodicHealthCheckRunnerHealthStateTests
 {
+    private static BackendNode PastGraceNode(string id = "n1") =>
+        new(id, $"http://{id}", registeredAt: DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
+
     private static HealthCheckOptions FastOptions() => new()
     {
         GracePeriod = TimeSpan.Zero,
@@ -92,10 +126,11 @@ public sealed class PeriodicHealthCheckRunnerHealthStateTests
     };
 
     [Fact]
-    public async Task HealthyResponse_MarksNodeHealthy()
+    public async Task CheckerReturnsTrue_MarksNodeHealthy()
     {
-        var node    = new BackendNode("n1", "http://a", registeredAt: DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
-        var checker = new FakeHealthChecker(new() { ["n1"] = true });
+        var node    = PastGraceNode();
+        var checker = Substitute.For<INodeHealthChecker>();
+        checker.CheckAsync(node, Arg.Any<CancellationToken>()).Returns(true);
 
         await using var runner = new PeriodicHealthCheckRunner([node], checker, FastOptions());
         await runner.StartAsync();
@@ -106,12 +141,11 @@ public sealed class PeriodicHealthCheckRunnerHealthStateTests
     }
 
     [Fact]
-    public async Task UnhealthyResponse_MarksNodeUnhealthy()
+    public async Task CheckerReturnsFalse_MarksNodeUnhealthy()
     {
-        var node = new BackendNode("n1", "http://a", registeredAt: DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
-        node.MarkHealthy(); // starts healthy
-
-        var checker = new FakeHealthChecker(new() { ["n1"] = false });
+        var node = PastGraceNode();
+        var checker = Substitute.For<INodeHealthChecker>();
+        checker.CheckAsync(node, Arg.Any<CancellationToken>()).Returns(false);
 
         await using var runner = new PeriodicHealthCheckRunner([node], checker, FastOptions());
         await runner.StartAsync();
@@ -122,12 +156,12 @@ public sealed class PeriodicHealthCheckRunnerHealthStateTests
     }
 
     [Fact]
-    public async Task RecoveredNode_BecomesHealthyAgain()
+    public async Task CheckerTransitionsFromFalseToTrue_NodeRecovers()
     {
-        var node = new BackendNode("n1", "http://a", registeredAt: DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
+        var node    = PastGraceNode();
         node.MarkUnhealthy();
-
-        var checker = new FakeHealthChecker(new() { ["n1"] = true });
+        var checker = Substitute.For<INodeHealthChecker>();
+        checker.CheckAsync(node, Arg.Any<CancellationToken>()).Returns(true);
 
         await using var runner = new PeriodicHealthCheckRunner([node], checker, FastOptions());
         await runner.StartAsync();
@@ -138,23 +172,24 @@ public sealed class PeriodicHealthCheckRunnerHealthStateTests
     }
 
     [Fact]
-    public async Task MultipleNodes_AreAllProbed()
+    public async Task MultipleNodes_CheckerCalledForEach()
     {
-        var nodes = Enumerable.Range(1, 3)
-            .Select(i => new BackendNode($"n{i}", $"http://node{i}",
-                registeredAt: DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1)))
-            .ToList();
+        var nodes = new[]
+        {
+            PastGraceNode("n1"),
+            PastGraceNode("n2"),
+            PastGraceNode("n3"),
+        };
 
-        var results = nodes.ToDictionary(n => n.Id, _ => true);
-        var checker = new FakeHealthChecker(results);
+        var checker = Substitute.For<INodeHealthChecker>();
+        checker.CheckAsync(Arg.Any<BackendNode>(), Arg.Any<CancellationToken>()).Returns(true);
 
         await using var runner = new PeriodicHealthCheckRunner(nodes, checker, FastOptions());
         await runner.StartAsync();
         await Task.Delay(200);
         await runner.StopAsync();
 
-        // At least one tick fired and every node was checked at least once
-        Assert.True(checker.CallCount >= nodes.Count);
-        Assert.All(nodes, n => Assert.True(n.IsHealthy));
+        foreach (var node in nodes)
+            await checker.Received().CheckAsync(node, Arg.Any<CancellationToken>());
     }
 }

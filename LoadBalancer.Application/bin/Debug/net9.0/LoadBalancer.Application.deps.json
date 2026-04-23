@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "LoadBalancer.Application/1.0.0": {
+        "dependencies": {
+          "LoadBalancer.Domain": "1.0.0"
+        },
+        "runtime": {
+          "LoadBalancer.Application.dll": {}
+        }
+      },
+      "LoadBalancer.Domain/1.0.0": {
+        "runtime": {
+          "LoadBalancer.Domain.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "LoadBalancer.Application/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "LoadBalancer.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

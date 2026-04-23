@@ -1,0 +1,11 @@
+C:\temp\inter\LoadBalancer.Domain\bin\Debug\net9.0\LoadBalancer.Domain.deps.json
+C:\temp\inter\LoadBalancer.Domain\bin\Debug\net9.0\LoadBalancer.Domain.dll
+C:\temp\inter\LoadBalancer.Domain\bin\Debug\net9.0\LoadBalancer.Domain.pdb
+C:\temp\inter\LoadBalancer.Domain\obj\Debug\net9.0\LoadBalancer.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\temp\inter\LoadBalancer.Domain\obj\Debug\net9.0\LoadBalancer.Domain.AssemblyInfoInputs.cache
+C:\temp\inter\LoadBalancer.Domain\obj\Debug\net9.0\LoadBalancer.Domain.AssemblyInfo.cs
+C:\temp\inter\LoadBalancer.Domain\obj\Debug\net9.0\LoadBalancer.Domain.csproj.CoreCompileInputs.cache
+C:\temp\inter\LoadBalancer.Domain\obj\Debug\net9.0\LoadBalancer.Domain.dll
+C:\temp\inter\LoadBalancer.Domain\obj\Debug\net9.0\refint\LoadBalancer.Domain.dll
+C:\temp\inter\LoadBalancer.Domain\obj\Debug\net9.0\LoadBalancer.Domain.pdb
+C:\temp\inter\LoadBalancer.Domain\obj\Debug\net9.0\ref\LoadBalancer.Domain.dll

@@ -34,6 +34,6 @@ public sealed class BackendNode
     public void MarkHealthy() => IsHealthy = true;
     public void MarkUnhealthy() => IsHealthy = false;
 
-    internal void IncrementActive() => Interlocked.Increment(ref _activeRequests);
-    internal void DecrementActive() => Interlocked.Decrement(ref _activeRequests);
+    public void IncrementActive() => Interlocked.Increment(ref _activeRequests);
+    public void DecrementActive() => Interlocked.Decrement(ref _activeRequests);
 }

@@ -8,11 +8,21 @@ public sealed class LeastOutstandingRequestsLoadBalancerTests
     private static BackendNode Node(string id) =>
         new(id, $"http://{id}", registeredAt: DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1));
 
+    // --- constructor guards ---
+
     [Fact]
-    public void Next_NoNodes_ReturnsNull()
+    public void Constructor_NullList_Throws()
     {
-        var lb = new LeastOutstandingRequestsLoadBalancer([]);
-        Assert.Null(lb.Next());
+        Assert.Throws<ArgumentNullException>(
+            () => new LeastOutstandingRequestsLoadBalancer(null!));
+    }
+
+    // --- Next() edge cases ---
+
+    [Fact]
+    public void Next_EmptyList_ReturnsNull()
+    {
+        Assert.Null(new LeastOutstandingRequestsLoadBalancer([]).Next());
     }
 
     [Fact]
@@ -20,32 +30,46 @@ public sealed class LeastOutstandingRequestsLoadBalancerTests
     {
         var node = Node("a");
         node.MarkUnhealthy();
-        var lb = new LeastOutstandingRequestsLoadBalancer([node]);
-        Assert.Null(lb.Next());
+        Assert.Null(new LeastOutstandingRequestsLoadBalancer([node]).Next());
     }
 
     [Fact]
-    public void Next_SingleNode_ReturnsThatNode()
+    public void Next_SingleHealthyNode_ReturnsThatNode()
     {
         var node = Node("a");
-        var lb = new LeastOutstandingRequestsLoadBalancer([node]);
-        Assert.Equal("a", lb.Next()!.Id);
+        Assert.Equal("a", new LeastOutstandingRequestsLoadBalancer([node]).Next()!.Id);
+    }
+
+    // --- Track() edge cases ---
+
+    [Fact]
+    public void Track_EmptyList_ReturnsNull()
+    {
+        Assert.Null(new LeastOutstandingRequestsLoadBalancer([]).Track());
     }
 
     [Fact]
-    public void Track_PicksNodeWithFewestActive()
+    public void Track_AllUnhealthy_ReturnsNull()
+    {
+        var node = Node("a");
+        node.MarkUnhealthy();
+        Assert.Null(new LeastOutstandingRequestsLoadBalancer([node]).Track());
+    }
+
+    // --- LOR selection logic ---
+
+    [Fact]
+    public void Track_PicksNodeWithFewestActiveRequests()
     {
         var a = Node("a");
         var b = Node("b");
         var c = Node("c");
-
         var lb = new LeastOutstandingRequestsLoadBalancer([a, b, c]);
 
-        // Pre-load a and c with in-flight requests; b stays at 0.
-        using var s1 = lb.Track(); // → a (all tied at 0, picks first)
-        using var s2 = lb.Track(); // → b (a=1, b=0, c=0 → picks b)
-        using var s3 = lb.Track(); // → c (a=1, b=1, c=0 → picks c)
-        using var s4 = lb.Track(); // → a (all tied at 1, picks first again)
+        using var s1 = lb.Track(); // all at 0 → a (first)
+        using var s2 = lb.Track(); // a=1 b=0 c=0 → b
+        using var s3 = lb.Track(); // a=1 b=1 c=0 → c
+        using var s4 = lb.Track(); // all at 1 → a (first, tie-break)
 
         Assert.Equal("a", s1!.Node.Id);
         Assert.Equal("b", s2!.Node.Id);
@@ -54,63 +78,82 @@ public sealed class LeastOutstandingRequestsLoadBalancerTests
     }
 
     [Fact]
-    public void Track_DisposingScope_DecrementsCounter()
-    {
-        var node = Node("a");
-        var lb = new LeastOutstandingRequestsLoadBalancer([node]);
-
-        var scope = lb.Track()!;
-        Assert.Equal(1, node.ActiveRequests);
-
-        scope.Dispose();
-        Assert.Equal(0, node.ActiveRequests);
-    }
-
-    [Fact]
-    public void Track_DoubleDispose_DoesNotDoubleDecrement()
-    {
-        var node = Node("a");
-        var lb = new LeastOutstandingRequestsLoadBalancer([node]);
-
-        var scope = lb.Track()!;
-        scope.Dispose();
-        scope.Dispose(); // safe — should not go negative
-
-        Assert.Equal(0, node.ActiveRequests);
-    }
-
-    [Fact]
-    public void Track_UnhealthyNodeSkipped_EvenIfFewerActive()
+    public void Track_UnhealthyNodeSkipped_EvenWithZeroActive()
     {
         var a = Node("a");
         var b = Node("b");
         b.MarkUnhealthy();
 
-        // a has 1 active, b has 0 but is unhealthy — must still pick a
+        // Give a one in-flight request so it has more than b's 0 — but b is unhealthy.
         using var _ = new LeastOutstandingRequestsLoadBalancer([a, b]).Track();
 
-        var lb = new LeastOutstandingRequestsLoadBalancer([a, b]);
+        // Fresh lb instance for the assertion to avoid counter pollution
+        var lb    = new LeastOutstandingRequestsLoadBalancer([a, b]);
         var scope = lb.Track();
+
         Assert.Equal("a", scope!.Node.Id);
     }
 
+    // --- IRequestScope / counter lifecycle ---
+
     [Fact]
-    public void Track_ConcurrentRequests_CounterStaysConsistent()
+    public void Track_IncreasesActiveRequests_OnAcquire()
+    {
+        var node = Node("a");
+        var scope = new LeastOutstandingRequestsLoadBalancer([node]).Track()!;
+
+        Assert.Equal(1, node.ActiveRequests);
+        scope.Dispose();
+    }
+
+    [Fact]
+    public void Track_DecrementsActiveRequests_OnDispose()
+    {
+        var node  = Node("a");
+        var scope = new LeastOutstandingRequestsLoadBalancer([node]).Track()!;
+        scope.Dispose();
+
+        Assert.Equal(0, node.ActiveRequests);
+    }
+
+    [Fact]
+    public void Track_DoubleDispose_IsIdempotent()
+    {
+        var node  = Node("a");
+        var scope = new LeastOutstandingRequestsLoadBalancer([node]).Track()!;
+        scope.Dispose();
+        scope.Dispose(); // must not go negative
+
+        Assert.Equal(0, node.ActiveRequests);
+    }
+
+    [Fact]
+    public void Track_ScopeNodeProperty_MatchesSelectedNode()
+    {
+        var node  = Node("my-node");
+        using var scope = new LeastOutstandingRequestsLoadBalancer([node]).Track()!;
+
+        Assert.Equal("my-node", scope.Node.Id);
+    }
+
+    // --- thread safety ---
+
+    [Fact]
+    public void Track_ConcurrentAcquireAndRelease_CounterRemainsConsistent()
     {
         var nodes = Enumerable.Range(0, 4).Select(i => Node($"n{i}")).ToList();
-        var lb = new LeastOutstandingRequestsLoadBalancer(nodes);
+        var lb    = new LeastOutstandingRequestsLoadBalancer(nodes);
 
-        // Open 100 scopes concurrently, then close them all.
         var scopes = Enumerable.Range(0, 100)
             .AsParallel()
             .Select(_ => lb.Track())
             .ToList();
 
-        var totalActive = nodes.Sum(n => n.ActiveRequests);
-        Assert.Equal(100, totalActive);
+        Assert.Equal(100, nodes.Sum(n => n.ActiveRequests));
 
         foreach (var s in scopes) s?.Dispose();
 
         Assert.All(nodes, n => Assert.Equal(0, n.ActiveRequests));
     }
 }
+
